@@ -1,0 +1,710 @@
+\documentclass[a4paper,11pt]{article}
+
+% Packages :
+\usepackage{mathtools}                        % for align, equation, etc.
+\usepackage{amssymb}                          % for mathbb
+\usepackage{graphicx}                         % for includegraphics
+\usepackage{natbib}                           % for bibliography
+\usepackage[hidelinks]{hyperref}              % for hyperlinks
+\usepackage{wrapfig}                          % for wrapfigure environment, to wrap text around figures
+\usepackage{url}                              % for \url{}
+\usepackage[capitalize,nameinlink]{cleveref}  % for \cref and \Cref.
+\usepackage{subcaption}                       % for subfigures
+\usepackage{stmaryrd}                         % for \llbracket and \rrbracket
+\usepackage{algpseudocode}                    % for algorithmic environment
+\usepackage{algorithm}                        % for algorithm environment
+\usepackage{bbm}                              % for mathbbm
+\usepackage{booktabs}                         % for toprule, midrule, bottomrule
+\usepackage{multirow}                         % for multirow in tables
+
+% Commands :
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\Q}{\mathbb{Q}}
+\newcommand{\N}{\mathbb{N}}
+\newcommand{\Z}{\mathbb{Z}}
+\newcommand{\C}{\mathbb{C}}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\Prob}{\mathbb{P}}
+\newcommand{\1}{\mathbbm{1}}
+\newcommand{\norm}[1]{\left\|#1\right\|}
+\newcommand{\abs}[1]{\left|#1\right|}
+
+% Add a custom command for parameterization
+\newcommand{\algorithmicparameter}{\textbf{Parameterization:}}
+\newcommand{\PARAMETER}{\item[\algorithmicparameter]}  % Create a shorthand
+
+% Document settings :
+\widowpenalty=10000   % avoid widow lines : lone lines at the top of a page, ending a paragraph
+\clubpenalty=10000    % avoid club lines : lone lines at the bottom of a page, starting a new paragraph
+\usepackage[a4paper, margin=1.in]{geometry}
+
+% Start of document :
+\begin{document}
+
+\title{Title}
+\author{
+    Grégoire DHIMOÏLA \\
+    ENS Paris-Saclay
+    \and
+    Author 2 \\ Institution
+}
+\date{Date}
+\maketitle
+
+\begin{abstract}
+    Abstract
+\end{abstract}
+
+\section{Introduction}
+\label{sec:introduction}
+
+\paragraph{}Optimal Transport (OT) is a mathematical framework that aims to find the most efficient way to transport a distribution of mass from one location to another.
+
+OT emerged as a powerful mathematical framework for comparing and transforming probability distributions, finding applications in various fields such as economics \citet{galichon2018optimal}, computer vision\citet{bonneel2023survey}, machine learning\citet{montesuma2024recent}, and more. Its ability to capture meaningful geometric relationships between distributions makes it particularly appealing in applications requiring a notion of distance or coupling. However, the computational complexity of the problem makes it challenging to apply to large-scale datasets. The goal of this project is to reimplement methods from \citet{seguy2018largescaleoptimaltransportmapping} on large-scale OT and measure their efficiency simple toy datasets.
+
+\paragraph{Mapping distributions.}Given $X \sim \mu$, $X \in \mathcal{X}$ and $Y \sim \nu$, $Y \in \mathcal{Y}$, many field of applications require to find a map $T$ such that $T(X) \sim \nu$. Many maps are possible solutions of this problem, and it is natural to introduce some optimality criterion. Using some cost function $c~: \mathcal{X} \times \mathcal{Y} \rightarrow \R$, we can define the \emph{optimal map} as the map that minimizes the cost of moving mass from $\mu$ to $\nu$. This formulation by \citet{monge1781memoire} started the field of optimal transport theory. The optimal map is also called the \emph{Monge map}. More details on the Monge problem can be found in \cref{sec:monge}.
+
+Distribution mapping can for instance lead to generative models \citep{bousquet2017optimal}, where $\mu$ is a simple continuous density distribution and $\nu$ is a complex one for which we only know a discrete ammount of samples. The complex distribution can then be modelled through a neural network $T$, used to generate samples from $\nu$. Generative adversarial networks (GANs) or variational autoencoders (VAEs) are examples of such models. Such a map can also be used for domain adaptation \citep{courty2016optimal}, where $\mu$ is a source domain and $\nu$ is a target domain, to transfer knowledge from one domain to another.
+
+\paragraph{OT.}Optimal distribution mapping, however, is much more difficult and can be solved in some cases, but using methods that quickly become intractable for large dimensions, and for some instances, maps between $\mu$ and $\nu$ might not even exist - e.g. when $\mu$ is discrete and $\nu$ is continuous. Kantorovich introduced a new, relaxed formulation of the problem, by optimizing distributions $\pi$ over $\mathcal{X} \times \mathcal{Y}$, called transport plans. This formulation is more general and transforms the OT problem into a linear programming problem, which is always feasible and offers more efficient algorithms, finding a probabilistic \emph{OT plan} being an easier problem than finding a deterministic \emph{Monge map}. However, these algorithms are still more than cubic in complexity in the size of the distributions supports, making them intractable for large-scale datasets.
+
+\paragraph{Large-scale OT.}The problem of large-scale OT has been addressed in the literature, with methods such as the Sinkhorn algorithm \citep{sinkhorn1967diagonal} introducing a regularization, acting as a soft constraint, as opposed to the hard marginal constraints of the Kantorovich formulation. Such algorithms still have a quadratic complexity in the size of the measures supports and are unable to handle continuous measures. \citet{seguy2018largescaleoptimaltransportmapping} proposed a stochastic gradient approach to learn the dual potentials of the regularized Kantorovich formulation, which can be used to compute the optimal transport plan. They also proposed a method to learn the barycentric projection, retrieving \emph{Monge maps} under certain conditions. The transport plan computation requires $O(p^2)$ operations per iteration, where $p$ is the number of points per batch, with the same convergence rate than \citet{NIPS2016_2a27b814}, which had a complexity of $O(n)$ per iteration, where $n$ is the number of points in the support of the measures. The optimal map learning is empirically shown to converge significantly faster than using the method of \citet{NIPS2016_2a27b814}.
+
+\paragraph{Objectives.}The goal of this project is to reimplement the methods from \citet{seguy2018largescaleoptimaltransportmapping} on large-scale OT, to measure their efficiency on simple settings and compare it to other methods to get the OT plan, systematically evaluating the convergence rate against the time elapsed and the number of samples needed. We will also study the convergence of the method and the quality of the learned barycentric projections.
+
+\paragraph{Plan.}In \cref{sec:background}, we introduce the main concepts of Optimal Transport theory, alternating between both mathematical jargon and intuitive explanations to make the concepts more accessible. In \cref{sec:large_scale_ot}, we present a state of the art method in large-scale OT from \citet{seguy2018largescaleoptimaltransportmapping} to solve the dual of the regularized Kantorovich problem. In \cref{sec:optimal_maps}, we present a method by the same authors to learn the optimal maps from the OT plans. In \cref{sec:experiments}, we present the experiments we conducted to evaluate the efficiency of the method. Finally, in \cref{sec:conclusion}, we conclude and discuss the results of our experiments. We also discuss the links between the concepts presented in this report and the lectures of the course in \cref{sec:link_to_the_class}.
+
+\section{Background}
+\label{sec:background}
+
+In this section, we introduce the main concepts of Optimal Transport (OT) theory, starting with the original formulation by Monge, then the relaxed formulation by Kantorovich, and finally the regularization of the problem to provide more efficient algorithms at the cost of a small error.
+
+\subsection{Monge's problem}
+\label{sec:monge}
+
+The original Monge problem is a deterministic problem, where we want to find a map that \emph{pushes forward} a distribution to another while minimizing the total cost of the transport. It can be viewed as wanting to move a pile of sand from one location to another to modify the landscape in a certain way while minimizing the cost of the operation. This problem is not always feasible, and the existence of a solution is not guaranteed.
+
+\paragraph{Definition.}Let $\mu$ be a probability measure on $\mathcal{X}$ and $T~: \mathcal{X} \rightarrow \mathcal{Y}$ a map between two measurable spaces. We denote by $T_{\#}\mu$ the \emph{pushforward} measure of $\mu$ by $T$, defined by $T_{\#}\mu(B) = \mu(T^{-1}(B))$ for any measurable set $B \subset \mathcal{Y}$.
+
+\paragraph{}It is the measure induced by moving the mass distributed on $\mathcal{X}$ by $\mu$ to $\mathcal{Y}$ through the transport map $T$. In the previous analogy, $T$ sends each grain of sand to another location, and $T_{\#}\mu$ is the resulting landscape. The definition can be broken down as follows~: $T$ sends sand from some parcels of land in $\mathcal{X}$ into some parcel $B \subset \mathcal{Y}$, those original locations are precisely $T^{-1}(B)$. All the mass present at those locations is then moved to $B$ and defines the measure $T_{\#}\mu(B)$.
+
+\paragraph{Definition.}Given two probability measures $\mu$ and $\nu$ on $\mathcal{X}$ and $\mathcal{Y}$, respectively, and a cost function $c~: \mathcal{X} \times \mathcal{Y} \rightarrow \R$, the Monge problem consists in finding a map $T~: \mathcal{X} \rightarrow \mathcal{Y}$ that \emph{pushes forward} $\mu$ to $\nu$ while minimizing the total cost of the transport~:
+\begin{equation}
+    \inf_{T} \left\{\int\limits_{\mathcal{X}} c(x, T(x)) \mathrm{d}\mu(x)~|~T_{\#}\mu = \nu\right\}
+\end{equation}
+
+\paragraph{}Extending on the previous metaphor, $\mu$ and $\nu$ are two landscapes, and one wants to find a landscaping operation with minimal cost.
+
+\paragraph{Existence.}The Monge problem is not always feasible, and the existence of a solution is not guaranteed. For instance, if the suport of $\mu$ is discrete and that of $\nu$ is continuous, there is no way to move the mass from $\mu$ to $\nu$ in a deterministic way, as the image of a discrete set by a map is always discrete. A pushforward measure of $\mu$ will always have discrete support, and the Monge problem is not feasible. This is why Kantorovich introduced a more general formulation of the problem, which is always feasible.
+
+\subsection{Kantorovich's relaxation}
+\label{sec:kantorovich}
+
+\paragraph{Definition.}The Kantorovich problem searches for a measure over the product space $\mathcal{X} \times \mathcal{Y}$ $\pi~: \mathcal{X} \times \mathcal{Y} \rightarrow \R$, called a \emph{transport plan}, that minimizes the total cost of the transport while satisfying the marginal constraints~:
+\begin{equation}
+    \label{eq:kantorovich}
+    \inf_{\pi} \left\{\mathcal{L}(\pi) \coloneq \int\limits_{\mathcal{X} \times \mathcal{Y}} c(x, y) \mathrm{d}\pi(x, y)~\middle|~\pi_1 = \nu\land\pi_2 = \mu\right\}
+\end{equation}
+where $\pi_1$ and $\pi_2$ are the marginals of $\pi$. This can be rewritten as~:
+\begin{equation}
+    \label{eq:kantorovich_rewritten}
+    \inf_{\pi} \left\{\E_{(X, Y) \sim \pi}[c(X, Y)]~\middle|~X \sim \mu \land Y \sim \nu\right\}
+\end{equation}
+
+\paragraph{}In the Kantorovich problem, we no longer look for a map that pushes forward $\mu$ to $\nu$, which is very hard to find in practive, but for a plan $\pi$, yielding a linear programming problem that is much easier to solve. This problem is always feasible, and the existence of a solution is guaranteed. The transport plan $\pi$ can be seen as a probabilistic way to move the mass from $\mu$ to $\nu$, where each point in $\mathcal{X}$ can send mass to multiple points in $\mathcal{Y}$, and vice versa.
+
+\paragraph{}If one thinks in terms of warehouses and transportation costs, the Monge problem consists in finding a coupling where each upstream warehouse sends goods to a single downstream warehouse, while the Kantorovich problem allows each upstream warehouse to send goods to multiple downstream warehouses. The Monge problem is a special case of the Kantorovich problem, where the transport plan is deterministic.
+
+\paragraph{Duality.}The Kantorovich problem is a linear programming problem and thus can be rewritten as a maximization problem, called the dual, which is easier to solve and provides a lower bound on the optimal value of the primal problem. The dual of \Cref{eq:kantorovich,eq:kantorovich_rewritten} respectively are~:
+\begin{equation}
+    \label{eq:kantorovich_dual}
+    \sup_{(u, v) \in \mathcal{R}(c)} \left\{\mathcal{D}^{\epsilon}(u,v) \coloneq \int\limits_{\mathcal{X}} u(x) \mathrm{d}\mu(x) + \int\limits_{\mathcal{Y}} v(y) \mathrm{d}\nu(y)\right\}
+\end{equation}
+\begin{equation}
+    \label{eq:kantorovich_dual_rewritten}
+    \sup_{(u, v) \in \mathcal{R}(c)} \left\{\E_{(X, Y) \sim \mu\times\nu}[u(X) + v(Y)]\right\}
+\end{equation}
+where the set of admissible \emph{dual potentials} is
+\begin{equation}
+    \mathcal{R}(c) = \left\{(u, v) \in \mathcal{C}^{0}(\mathcal{X}, \R) \times \mathcal{C}^{0}(\mathcal{Y}, \R)~|~\forall (x, y), u(x) + v(y) \leq c(x, y)\right\}
+\end{equation}
+
+\paragraph{}The linear programming view of the problem allows to solve it using known algorithms, such as the simplex algorithm, which has a complexity of $\mathcal{O}(n^3\log(n))$, where $n$ is the number of points in the support of $\mu$ and $\nu$. The \emph{Sinkhorn} algorithm \citep{sinkhorn1967diagonal} allows for even better performance at the cost of some error, with a complexity of $\mathcal{O}(Cnm)$, where $C$ is the number of iterations, $n$ and $m$ are the number of points in the support of $\mu$ and $\nu$ respectively. It uses the dual potentials along with some regularization to act as a soft constraint, as opposed to the hard marginal constraints of the Kantorovich problem.
+
+\subsection{Regularization}
+\label{sec:regularization}
+
+\paragraph{}The Kantorovich problem can be regularized to provide more efficient algorithms at the cost of a small error. The regularization consists in removing the hard marginal constraints while adding a term to the cost function that penalizes the deviation from the marginal constraints. This term is called the \emph{entropy} of the transport plan, and the regularized problem is~:
+\begin{equation}
+    \label{eq:regularized_kantorovich}
+    \inf_{\pi} \left\{\mathcal{L}^{\epsilon}(\pi) \coloneq \int\limits_{\mathcal{X} \times \mathcal{Y}} c(x, y) \mathrm{d}\pi(x, y) + \epsilon R(\pi)~\middle|~\pi_1 = \nu\land\pi_2 = \mu\right\}
+\end{equation}
+where $R(\pi)$ is typically the entropy of the transport plan, or equivalently the Kullback-Leibler divergence between $\pi$ and the product measure $\mu \otimes \nu$~: $\mathrm{KL}(\pi~||~\mu \otimes \nu)$. \citet{seguy2018largescaleoptimaltransportmapping} also used an $L^2$ regularization for stability reasons.
+
+In the primal form of this problem, the hard constraints are still present, but with these strictly convex regularizations, the dual becomes unconstrained~:
+\begin{equation}
+    \label{eq:regularized_kantorovich_dual}
+    \sup_{(u, v)}\left\{\mathcal{D}^{\epsilon}(u,v) \coloneq \int\limits_{\mathcal{X}} u(x) \mathrm{d}\mu(x) + \int\limits_{\mathcal{Y}} v(y) \mathrm{d}\nu(y) + \int\limits_{\mathcal{X} \times \mathcal{Y}} F_{\epsilon}(u(x) + v(y) - c(x, y)) \mathrm{d}\pi(x, y)\right\}
+\end{equation}
+with $u$ and $v$ being only required to be in $\mathcal{C}(\mathcal{X})$ and $\mathcal{C}(\mathcal{Y})$ respectively, and $F_{\epsilon}$ is defined as~:
+\begin{equation}
+    F_{\epsilon}(x) = \begin{cases}
+        - \epsilon e^{\frac{1}{\epsilon}x} & \text{(entropy)} \\
+        - \frac{1}{4\epsilon} x_+^2 & \text{($L^2$)}
+    \end{cases}
+\end{equation}
+where $x_+ = \max(x, 0)$. Once the dual potentials $u$ and $v$ are learned, and following the notations from \citet{seguy2018largescaleoptimaltransportmapping}, the optimal transport plan can be computed by~:
+\begin{equation}
+    H_{\epsilon}(x, y) = \begin{cases}
+        e^{\frac{1}{\epsilon}(u(x) + v(y) - c(x, y))} & \text{(entropy)} \\
+        \frac{1}{2\epsilon}(u(x) + v(y) - c(x, y))_+ & \text{($L^2$)}
+    \end{cases}
+\end{equation}
+and $\mathrm{d}\pi(x, y) = H_{\epsilon}(x, y) \mathrm{d}\mu(x) \mathrm{d}\nu(y)$. In a discrete setting, to retrieve the transport plan $\pi$ associated with the dual potentials $u$ and $v$, one can use the following formula~:
+\begin{equation}
+    \pi_{ij} = \mu_i \nu_j H_{\epsilon}(x_i, y_j)
+\end{equation}
+
+\paragraph{Sinkhorn.}The Sinkhorn algorithm is an iterative algorithm to efficiently solve the regularized Kantorovich problem. It alternates between normalizing the rows and columns of the transport plan, which can be understood as alternatively projecting the dual potentials onto the marginal constraints. The algorithm is presented in \cref{alg:sinkhorn} in the discrete case, where $\mu$ and $\nu$ are represented as vectors. This algorithm relies on the decomposition of $\pi$ in the following form~:
+\begin{equation}
+    \pi = \mathrm{diag}(u)K\mathrm{diag}(v)
+\end{equation}
+where $K_{ij} = e^{-\frac{c(x_i, y_j)}{\epsilon}}$. $u$ and $v$ are \emph{not} dual potentials, but they are linked to them by the following equations~:
+\begin{equation}
+    u_i^{\mathrm{sink}} = \mu_i e^{\frac{u_i^{\mathrm{dual}}}{\epsilon}}~~~~~ v_j^{\mathrm{sink}} = \nu_j e^{\frac{v_j^{\mathrm{dual}}}{\epsilon}}
+\end{equation}
+\begin{algorithm}[H]
+    \caption{Sinkhorn algorithm}
+    \label{alg:sinkhorn}
+    \begin{algorithmic}
+        \State $v \leftarrow \1_m$
+        \State $K_{ij} \leftarrow e^{-\frac{c(x_i, y_j)}{\epsilon}}$
+        \While{not converged}
+            \State $u \leftarrow \frac{\mu}{Kv}$
+            \State $v \leftarrow \frac{\nu}{K^{\top}u}$
+        \EndWhile
+    \end{algorithmic}
+\end{algorithm}
+
+\section{Large scale OT}
+\label{sec:large_scale_ot}
+
+\paragraph{}The problem of large-scale OT has been addressed in the literature, as the complexity of Sinkhorn makes it intractable for large datasets. Large-scale OT is particularly interesting in applications such as machine learning, imaging, and generalization, where the datasets can be very large and data points can be high-dimensional. \citet{NIPS2016_2a27b814,seguy2018largescaleoptimaltransportmapping} proposed stochastic gradient approaches to learn the dual potentials of the regularized Kantorovich problem, with respective complexities of $\mathcal{O}(n)$ and $\mathcal{O}(p^2)$ per iteration, where $n$ is the number of points and $p$ is the number of points per batch. This report focuses on the method of \citet{seguy2018largescaleoptimaltransportmapping}, whose algorithm is presented in \cref{alg:large_scale_ot}.
+
+\begin{algorithm}[H]
+    \caption{Large-scale OT algorithm}
+    \label{alg:large_scale_ot}
+    \begin{algorithmic}
+        \Require measures $\mu$ and $\nu$, cost function $c$, batch size $p$, learning rate $\gamma$.
+        \PARAMETER \\ \begin{itemize}
+            \item if $\mu = \sum\limits_{i=1}^{n} \mu_i \delta_{x_i}$, $u$ is a vector ($u(x_i) = u_i$)
+            \item if $\mu$ is a continuous measure, $u$ is a neural network
+            \item same for $\nu$ and $v$
+        \end{itemize}
+        \State Initialize $u$ and $v$ randomly
+        \While{not converged}
+            \State Sample $(x_1, \ldots, x_p) \sim \mu$
+            \State Sample $(y_1, \ldots, y_p) \sim \nu$
+            \State Update $u \leftarrow u + \gamma \sum\limits_{ij} \nabla u(x_i) + \partial_u F_{\epsilon}[u(x_i) + v(y_j) - c(x_i, y_j)] \nabla u(x_i)$
+            \State Update $v \leftarrow v + \gamma \sum\limits_{ij} \nabla v(y_j) + \partial_v F_{\epsilon}(u(x_i) + v(y_j) - c(x_i, y_j)) \nabla v(y_j)$
+        \EndWhile
+    \end{algorithmic}
+\end{algorithm}
+
+\section{Optimal maps}
+\label{sec:optimal_maps}
+
+\paragraph{}While OT plans are useful to compare and transform probability distributions, they are not always enough to perform applications. Having a deterministic map might be necessary in cases like matching and ressource allocation. Another application can be generative models : one might want to generate samples from a complex distribution $\nu$ given samples from a simple distribution $\mu$. In this case, the OT plan is not enough, and one needs to find a map that transforms the samples from $\mu$ to samples from $\nu$. This map is called the \emph{optimal map} or \emph{Monge map}. The optimal map is also useful for domain adaptation, where one wants to transfer knowledge from a source domain to a target domain.
+
+\paragraph{Barycentric projection.}One can get a map from an OT plan by computing the \emph{barycentric projection} of the target measure onto the source measure. Given $x \in \mathcal{X}$, $\pi(x, \cdot)$ is a measure on $\mathcal{Y}$ : the barycentric projection takes the barycenter of this measure as follows.
+
+\paragraph{Definition.}Let $\pi : \mathcal{X} \times \mathcal{Y} \rightarrow \R$ be a probability measure on the product space $\mathcal{X} \times \mathcal{Y}$ and $d : \mathcal{Y} \times \mathcal{Y} \rightarrow \R$ a convex cost function on $\mathcal{Y}$. The barycentric projection $\widetilde{\pi} : \mathcal{X} \rightarrow \mathcal{Y}$ of $\pi$ is defined as~:
+\begin{equation}
+    \forall x \in \mathcal{X}, \widetilde{\pi}(x) \coloneq \mathop{\arg\min}\limits_{z \in \mathcal{Y}} \int\limits_{\mathcal{Y}} d(z, y) \mathrm{d}\pi(x, y)
+\end{equation}
+
+If $d$ is the squared Euclidean distance, this projection has a closed form~: $\widetilde{\pi}(x) = \E_{y \sim \pi(\cdot | x)}[y]$. When the cost function $c$ is the squared Euclidean distance, the barycentric projection is the \emph{Monge map} between $\mu$ and $\widetilde{\pi}_{\#}\mu$ \citep{ambrosio2008gradient}. It is \emph{not} a \emph{Monge map} between $\mu$ and $\nu$, as $\widetilde{\pi}_{\#}\mu$ is only approximately equal to $\nu$ due to information being lost in the projection.
+
+\paragraph{}In semi-discrete or continuous cases, $\widetilde{\pi}$ can be parameterized by a neural network, and learnt by following \cref{alg:optimal_map} from \citet{seguy2018largescaleoptimaltransportmapping}.
+
+\begin{algorithm}[H]
+    \caption{Optimal map learning with SGD}
+    \label{alg:optimal_map}
+    \begin{algorithmic}
+        \Require measures $\mu$ and $\nu$, cost function $c$, dual variables $u$ and $v$, map $f_{\theta}$ parameterized by $\theta$, batch size $p$, learning rate $\gamma$.
+        \While{not converged}
+            \State Sample $(x_1, \ldots, x_p) \sim \mu$
+            \State Sample $(y_1, \ldots, y_p) \sim \nu$
+            \State Update $\theta \leftarrow \theta - \gamma \sum\limits_{ij} H_{\epsilon}(x_i, y_j) \nabla_{\theta} d(y_j, f_{\theta}(x_i))$
+        \EndWhile
+    \end{algorithmic}
+\end{algorithm}
+
+\section{Theoretical guarantees}
+\label{sec:theoretical_guarantees}
+
+\paragraph{}Let $\mu$ be a continuous measure, $(\mu_n)_{n \in \N}$ a sequence of discrete measures converging to $\mu$ such that $\mu_n$ has $n$ points in its support.
+
+\citet{seguy2018largescaleoptimaltransportmapping} showed that regularized OT plans $\pi_n^{\epsilon}$ converges weakly to the OT plan $\pi = (id, f)_{\#}\mu$ \citep{brenier1991polar} as $\epsilon \rightarrow 0$ and $n \rightarrow \infty$.
+
+They also showed that the barycentric projection $\widetilde{\pi}_n^{\epsilon}$ converges weakly to the \emph{Monge map} $f$ as $(n, \epsilon) \rightarrow (\infty, 0)$.
+
+\section{Experiments}
+\label{sec:experiments}
+
+\paragraph{}The goal of the experiments is to check whether the stochastic dual approach developped by \citet{seguy2018largescaleoptimaltransportmapping} works at all - both the learning of plan and of map - and to check the convergence rate as a function of time and number of samples needed. We will also check the generalization ability of the method.
+
+\subsection{Settings}
+
+\paragraph{}Throughout the experiments, we will refer to the following settings in order to measure different aspects of the algorithms described previously. In all experiments, we use the squared Euclidean distance as the cost function $c(x, y) = \norm{x - y}^2$ and as the distance function $d(x, y) = \norm{x - y}^2$ for the barycentric projections. All the result reported use entropy regularization, with a regularization parameter $\epsilon = 1$.
+
+\paragraph{Identity.}In the \emph{identity} setting, we generate two distributions $\mu = \nu$ using the following procedure~: we sample $\mathrm{logits} \in \R^{n}$ - $n = 1000$, unless explicitely stated otherwise - from a uniform distribution between $0$ and $10$, which are used to compute $\mu = \nu = \mathrm{softmax}(\mathrm{logits})$. We then associate to these random distributions the samples $X = Y \in \R^d$ - $d = 3$ - uniformly sampled from the cube $[0, 1]^d$.
+
+Without regularization, the OT plan is trivial and deterministic, and the problem has a Monge map that is the identity. With regularization, there is no simple closed form solution. We still chose to use these as a reference for the experiments, as they provide simple baseline cases.
+
+We will refer to this setting as \emph{setting 1}.
+
+\paragraph{Discretized Gaussian.}In the \emph{discretized Gaussian} setting, we sample $b_{\mu}, b_{\nu} \in \R^d \sim \mathcal{N}(0, I_d)$ - $d = 3$ - and $\Sigma_{\mu}, \Sigma_{\nu} \in \R^{d \times d} \sim \mathcal{N}(0, I_{d \times d})$, parameters of the Gaussian distributions used to generate the samples $X \in \R^{n \times d} \sim \mathcal{N}(b_{\mu}, \Sigma_{\mu})$ - $n = 10000$ - and $Y \in \R^{n \times d} \sim \mathcal{N}(b_{\nu}, \Sigma_{\nu})$. As these are approximating a continuous measure and are distributed following their respective densities, they are given weights of $mu_i = \nu_i = \frac{1}{n}$.
+
+In this discretized setting, there are no closed form solutions for the OT plan nor the Monge map. We will however refer to the \emph{Monge map} between the two underlying Gaussian distributions as the reference map, given by~:
+\begin{equation}
+    T_{\mathrm{Monge}}(x) = T^{*}(x - b_{\mu}) + b_{\nu}
+\end{equation}
+where $T^{*} = \Sigma_{\mu}^{-\frac{1}{2}}\left[
+    \Sigma_{\mu}^{\frac{1}{2}}\Sigma_{\nu}\Sigma_{\mu}^{\frac{1}{2}}
+\right]^{\frac{1}{2}}\Sigma_{\mu}^{-\frac{1}{2}}$. These two functions are \emph{not} supposed to coincide, as we are approximating the barycetric projection associeted to a \emph{regularized} OT plan. However, this will still give a good idea of the quality of the learned map. Specifically, \cref{alg:optimal_map} approximates the Monge map between $\mu$ and $\widetilde{\pi}_{\#}\mu$, which is in practice very close to $\nu$ as we will see in the experiments.
+
+We tried using the following as a reference transport plan, but it was an obvious failure as it does not even respect the marginal constraints~:
+\begin{equation}
+    \pi_{ij} = \frac{\widehat{\pi}(x_i, y_j)}{\sum\limits_{ij} \widehat{\pi}(x_i, y_j)}
+\end{equation}
+where $\widehat{\pi}(x, y)$ is the close form solution of the regularized OT plan's density function between two Gaussian distributions \citep{janati2020entropicoptimaltransportunbalanced}. We instead use the sinkhorn algorithm's results as a reference.% To remedy this slight issue, we also use a second discretization of the Gaussian distributions by taking $X$ and $Y$ in grids, as described below.
+
+We will refer to this setting as \emph{setting 2}.
+
+% \paragraph{Discretized Gaussian 2.}We proceed as in the previous setting, but instead of sampling $X$ and $Y$ from their associated distributions, we will use grids centered around $b_{\mu}$ and $b_{\nu}$ and aligned with the covariance matrices' eigenvectors, spaced according to the corresponding eigenvalues. We space the points such that the grid has $n$ points in total and ranges from $-10 \lambda^{\mu/\nu}_i$ to $10 \lambda^{\mu/\nu}_i$ along the $i$-th eigenvector, where $\lambda^{\mu/\nu}_i$ is the $i$-th eigenvalue of $\Sigma_{\mu/\nu}$. In this setting, the weights of the points are given by the density of the Gaussian distributions at the corresponding points~: $\mu_i = \mathcal{N}(x_i | b_{\mu}, \Sigma_{\mu})$ and $\nu_i = \mathcal{N}(y_i | b_{\nu}, \Sigma_{\nu})$. We normalize the weights so that they sum up to $1$.
+
+% In this setting, we can use the ground truth given by $\widehat{\pi}$ as the reference OT plan. Although the marginals are not exactly respected, the error is small enough to be considered an approximation error (see \cref{sec:TODO}). We also use the \emph{Monge map} between the two Gaussian distributions as a reference, with the same precautions as in the previous setting.
+
+% We will refer to this setting as \emph{setting 3}.
+
+\paragraph{Gaussian.}In this context, we use the same Gaussian distributions as in the previous setting, but we do not discretize them. As a result, we are not able to use the sinkhorn algorithm to compute a reference OT plan, and we instead use the one obtained by \cref{alg:large_scale_ot} after a long training time. This choice will be motivated in the experiments after having checked that in the discrete case, our approximation was close enough to the chosen ground truth.
+
+We compare the approximate barycentric projection to the \emph{Monge map} between the two Gaussians, with the same precautions as in the previous setting.
+
+In this continuous setting, we parameterize the dual potentials $u$ and $v$ as simple two layers MLPs with ReLU activations, and similarly for the map $f_{\theta}$. We chose hidden dimensions of $10 \times d$.
+
+We will refer to this setting as \emph{setting 3}.
+
+\subsection{On the convergence of the transport plans}
+\label{sec:convergence_transport_plans}
+
+\paragraph{Experiment 1.}The first question we will address is whether the stochastic dual approach from \cref{alg:large_scale_ot} can learn an OT plan at all. We use \emph{setting 1} and \emph{2} for their simplicity and both the Sinkhorn \cref{alg:sinkhorn} and the stochastic dual \cref{alg:large_scale_ot} approaches.
+
+For a fast metric measuring the distance between two probability measures, we use the total variation~: $\mathrm{TV}(a, b) = \sum\limits_{i} \abs{a_i - b_i}$. 
+
+We measure the primal and dual objectives $\mathcal{L}^{\epsilon}(\pi)$ and $\mathcal{D}^{\epsilon}(u, v)$. If the primal and dual coincide, the solution is optimal, provided that the primal constraints are satisfied - hence the measure of the total variation between $\pi_1$ and $\mu$ and $\pi_2$ and $\nu$.
+
+For reference, we also measure the total transportation cost $\mathcal{L}(\pi)$. We report the results in \cref{tab:exp1}. For completeness, we report the total variation results in \cref{tab:exp1_tv} to ensure that the primal constraints are satisfied.
+
+\setlength{\heavyrulewidth}{1.5pt} % Thickness for \toprule and \bottomrule
+\setlength{\lightrulewidth}{0.8pt} % Thickness for \midrule
+\setlength{\cmidrulewidth}{0.5pt}  % Thickness for \cmidrule
+\setlength{\arrayrulewidth}{0.6pt}  % Thickness for |
+\begin{table}[H]
+    \centering
+    \begin{tabular}{c|ccc|ccc|ccc}
+        \toprule
+        \multirow{2}{*}{Setting} & \multicolumn{3}{c}{$\mathcal{L}^{\epsilon}(\pi)$} & \multicolumn{3}{c}{$\mathcal{D}^{\epsilon}(u, v)$} & \multicolumn{3}{c}{$\mathcal{L}(\pi)$} \\
+        \cmidrule(lr){2-4} \cmidrule(lr){5-7} \cmidrule(lr){8-10}
+        & ref & algo1 & algo2 & ref & algo1 & algo2 & ref & algo1 & algo2 \\
+        \midrule
+        \emph{Identity.} & -6.91 & -11.1 & -8.88 & & 0.0049 & 0.0049 & 0.0 & 0.0049 & 0.0047 \\
+        \emph{Discretized Gaussian.} & -0.63 & -0.63 & 8.8 & 19.3 & 19.3 & 19.75 & 17.5 & 17.5 & 19.11 \\
+        % \emph{Discretized Gaussian 2.} & 0.1 & 0.2 & 0.3 & 0.1 & 0.2 & 0.3 & 0.1 & 0.2 & 0.3 \\
+        % \emph{Gaussian.} & 1.5 & & 5.66 & & & 17.0 & 19.1 & & 15.1 \\
+        \bottomrule
+    \end{tabular}
+    \caption{Final performance of the reference (ref) transport plan, the one given by the Sinkhorn algorithm (algo1), and the one given by the stochastic dual approach (algo2).}
+    \label{tab:exp1}
+\end{table}
+
+%  & \multicolumn{3}{c}{$\mathrm{TV}(\pi_1, \mu)$} & \multicolumn{3}{c}{$\mathrm{TV}(\pi_2, \nu)$}
+\begin{table}[H]
+    \centering
+    \begin{tabular}{c|ccc|ccc}
+        \toprule
+        \multirow{2}{*}{Setting} & \multicolumn{3}{c}{$\mathrm{TV}(\pi_1, \mu)$} & \multicolumn{3}{c}{$\mathrm{TV}(\pi_2, \nu)$} \\
+        \cmidrule(lr){2-4} \cmidrule(lr){5-7}
+        & ref & algo1 & algo2 & ref & algo1 & algo2 \\
+        \midrule
+        \emph{Identity.} & 0.0 & 0.0 & 0.0 & 0.0 & 0.0 & 0.0 \\
+        \emph{Discretized Gaussian.} & 0.05 & 0.05 & 0.01 & 0.05 & 0.05 & 0.01 \\
+        % \emph{Discretized Gaussian 2.} & 0.1 & 0.2 & 0.3 & 0.1 & 0.2 & 0.3 \\
+        % \emph{Gaussian.} & 0.0 & & 0.48 & 0.0 & & 0.62 \\
+        \bottomrule
+    \end{tabular}
+    \caption{Total variation between marginals and target measures for the reference (ref) transport plan, the one given by the Sinkhorn algorithm (algo1), and the one given by the stochastic dual approach (algo2).}
+    \label{tab:exp1_tv}
+\end{table}
+
+From these result, we can see a clear discrepancy between the primal and dual objectives, with the primal being significantly lower than the dual, violating the fact that $\mathcal{D}^{\epsilon}(u, v) \leq \mathcal{L}^{\epsilon}(\pi)$. This cannot be explained by the primal condition not being satisfied, as the total variation between the marginals and the target measures is negligible. We did not manage to find the reason for this discrepancy, but we suspect numerical issues arising from exponential terms involved in the computation.
+
+Despite this issue, we can see that the stochastic dual approach in these simple settings is able to learn transport plans with equivalent dual objectives as the Sinkhorn algorithm, although the final plan are not necessaryly the same - they are in the identity case, with a negligible total variation, but not in the discrete gaussian case, with a total variation of $0.1$.
+
+Furthermore, though unrelated to the original question for this experiment, we can see that the transport cost for the regularized setting is significantly higher than that of the unregularized setting - e.g. in the discrete Gaussian case, the transport cost is $19.11$ for the regularized setting and $6.2$ using close form solutions of the Monge problem.
+
+\paragraph{Experiment 2.}Secondly, we will address the question of whether the parameterization as a neural network of the dual potentials is able to converge to optimal potentials. We repeat the same numerical experiment with the only difference being that now $u$ and $v$ are parameterized as neural networks as described in \emph{setting 3}. We also add \emph{setting 3} to this experiment, as it's continuous nature require such a parameterization of $u$ and $v$.
+
+We find that using this parameterization, the algorithm could not converge to satisfying results. We tried several variations of the architecture and hyperparameters, and chose to report results using the best architecture we tried. Though the objective values are similar to those of the previous experiment, the final plans completely fail to respect the marginal constraints, with total variations of the marginals to the target measures of $0.27$ and $0.25$ in the discrete Gaussian case, and $0.48$ and $0.62$ in the Gaussian case. The identity case was not affected by this reparameterization.
+
+We report the results in \cref{tab:exp2} and \cref{tab:exp2_tv}.
+
+\begin{table}[H]
+    \centering
+    \begin{tabular}{c|ccc|ccc|ccc}
+        \toprule
+        \multirow{2}{*}{Setting} & \multicolumn{3}{c}{$\mathcal{L}^{\epsilon}(\pi)$} & \multicolumn{3}{c}{$\mathcal{D}^{\epsilon}(u, v)$} & \multicolumn{3}{c}{$\mathcal{L}(\pi)$} \\
+        \cmidrule(lr){2-4} \cmidrule(lr){5-7} \cmidrule(lr){8-10}
+        & ref & algo1 & algo2 & ref & algo1 & algo2 & ref & algo1 & algo2 \\
+        \midrule
+        \emph{Identity.} & -6.91 & -11.1 & -8.78 & & 0.0049 & 0.0049 & 0.0 & 0.0049 & 0.0047 \\
+        \emph{Discretized Gaussian.} & -0.63 & -0.63 & 8.95 & 19.3 & 19.3 & 20.17 & 17.5 & 17.5 & 19.13 \\
+        % \emph{Discretized Gaussian 2.} & 0.1 & 0.2 & 0.3 & 0.1 & 0.2 & 0.3 & 0.1 & 0.2 & 0.3 \\
+        \emph{Gaussian.} & 1.5 & & 5.66 & & & 17.0 & 19.1 & & 15.1 \\
+        \bottomrule
+    \end{tabular}
+    \caption{Final performance of the reference (ref) transport plan, the one given by the Sinkhorn algorithm (algo1), and the one given by the stochastic dual approach (algo2).}
+    \label{tab:exp2}
+\end{table}
+
+%  & \multicolumn{3}{c}{$\mathrm{TV}(\pi_1, \mu)$} & \multicolumn{3}{c}{$\mathrm{TV}(\pi_2, \nu)$}
+\begin{table}[H]
+    \centering
+    \begin{tabular}{c|ccc|ccc}
+        \toprule
+        \multirow{2}{*}{Setting} & \multicolumn{3}{c}{$\mathrm{TV}(\pi_1, \mu)$} & \multicolumn{3}{c}{$\mathrm{TV}(\pi_2, \nu)$} \\
+        \cmidrule(lr){2-4} \cmidrule(lr){5-7}
+        & ref & algo1 & algo2 & ref & algo1 & algo2 \\
+        \midrule
+        \emph{Identity.} & 0.0 & 0.0 & 0.013 & 0.0 & 0.0 & 0.013 \\
+        \emph{Discretized Gaussian.} & 0.05 & 0.05 & 0.27 & 0.05 & 0.05 & 0.25 \\
+        % \emph{Discretized Gaussian 2.} & 0.1 & 0.2 & 0.3 & 0.1 & 0.2 & 0.3 \\
+        \emph{Gaussian.} & 0.0 & & 0.48 & 0.0 & & 0.62 \\
+        \bottomrule
+    \end{tabular}
+    \caption{Total variation between marginals and target measures for the reference (ref) transport plan, the one given by the Sinkhorn algorithm (algo1), and the one given by the stochastic dual approach (algo2).}
+    \label{tab:exp2_tv}
+\end{table}
+
+\paragraph{Experiment 3.}We will now look into the convergence speed of the transport plans as a function of time and number of samples seen. Instead of measuring the previous quantities after convergence, we simply measure them after each iteration of \cref{alg:sinkhorn,alg:large_scale_ot}. \cref{fig:exp3_id} shows the results for the \emph{identity} setting, while \cref{fig:exp3_dg1} shows those for the \emph{discretized Gaussian} setting.
+
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}{0.48\linewidth}
+        \centering
+        \includegraphics[width=\linewidth]{images/id_dual.png}
+    \end{subfigure}%
+    \hfill
+    \begin{subfigure}{0.48\linewidth}
+        \centering
+        \includegraphics[width=\linewidth]{images/id_tv.png}
+    \end{subfigure}
+    \caption{Convergence speed of the transport plans in the \emph{identity} setting. \emph{Left :} $\mathcal{D}^{\epsilon}(u, v)$ against run time. \emph{Right :} Total variation of marginals against time.}
+    \label{fig:exp3_id}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}{0.48\linewidth}
+        \centering
+        \includegraphics[width=\linewidth]{images/dg_dual.png}
+    \end{subfigure}%
+    \hfill
+    \begin{subfigure}{0.48\linewidth}
+        \centering
+        \includegraphics[width=\linewidth]{images/dg_tv.png}
+    \end{subfigure}
+    \caption{Convergence speed of the transport plans in the \emph{discretized Gaussian} setting. \emph{Left :} $\mathcal{D}^{\epsilon}(u, v)$ against run time. \emph{Right :} Total variation of marginals against time.}
+    \label{fig:exp3_dg1}
+\end{figure}
+
+Those results show the convergence in time only. We also report the results for the convergence in number of samples seen in \cref{app:conv_sample}. For space complexity reasons, we were not able to conduct comparisons involving larger datasets, where Sinkhorn would be slower than the stochastic dual approach. We find that in terms of number of sample seen, Sinkhorn's algorithm is significantly faster than the stochastic dual approach
+
+\subsection{On the convergence of the barycentric projections}
+
+\paragraph{Experiment 4.}After investigating \cref{alg:large_scale_ot}, we will now be interesed in the learning of the barycentric projection and its parameterization as a neural network. In discrete settings, we will compare it to the close form solution given by $T_{\mathrm{bary}} \coloneq \widetilde{\pi} = \frac{\pi Y}{\pi_1}$, where $\pi_1$ is the marginal of $\pi$ on $X$.
+
+Again, we are first interested in both the convergence speed of the map, and the quality of the final map. We find that the map converges very quickly to the optimal map. We report in \cref{fig:exp4} the loss and the MSE between the learned map's images and those of the reference map. We also report those values for the close form solution of the barycentric projection.
+
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}{0.48\linewidth}
+        \centering
+        \includegraphics[width=\linewidth]{images/id_map.png}
+    \end{subfigure}%
+    \hfill
+    \begin{subfigure}{0.48\linewidth}
+        \centering
+        \includegraphics[width=\linewidth]{images/dg_map.png}
+        \label{fig:exp4_dg1}
+    \end{subfigure}
+    \caption{Convergence speed of the optimal map in the \emph{identity} setting (\emph{left}) and \emph{discretized Gaussian} setting (\emph{right}).}
+    \label{fig:exp4}
+\end{figure}
+
+In the continuous \emph{Gaussian} setting, however, $f_{\theta}$ does not converge to the \emph{Monge map} between the two Gaussian distributions, with a mean squared error of $0.3$.
+
+We also find that even with the terrible transport plans from experiment 2, we are able to learn a map that is equally as good as the one learned from the OT plans from experiment 1 in the discrete settings, while the close form solution for the barycentric projection is significantly worse, with a MSE of $20$.
+
+Finally, we look into the generalization ability of the map by sampling $X_{\text{test}}$ from the same gaussian distribution as $X$ and measuring the MSE between $f_{\theta}(X_{\text{test}})$ and the \emph{Monge map} $T_{\text{Monge}}(X_{\text{test}})$. We find an MSE of $0.0$ in the \emph{identity} setting, and $0.038$ in the \emph{discretized Gaussian} setting, which are the same as on the training set.
+
+\section{Conclusion}
+\label{sec:conclusion}
+
+The exploration of \citet{seguy2018largescaleoptimaltransportmapping} large-scale OT methods has yielded promising insights but also revealed some limitations. The reimplementation confirmed the efficiency of their stochastic gradient approach in certain controlled settings, particularly in convergence rates and computational feasibility with toy datasets, maintaining a decent time complexity in settings where Sinkhorn was completely impractical. However, challenges persisted with the parameterization of the dual potentials as neural networks, which failed to converge to optimal solutions in our experiments.
+
+Furthermore, it is worth noting that all conclusive and quantitative experiments presented in the original paper were conducted on finite datasets. This observation, together with our inconclusive experiments, raises questions about the method’s scalability and robustness when applied to continuous or distributions, an ability which was presented as a key advantage of the approach.
+
+The discrepancy between the primal and dual objectives remains a significant issue, suggesting potential numerical instability, algorithmic limitations or some error in our implementation.
+
+The barycentric projection, on the other hand, showed remarkable convergence speed and generalization ability, even with suboptimal transport plans, demonstrating the potential of the stochastic dual approach for practical applications.
+
+\section{Link to the class}
+\label{sec:link_to_the_class}
+
+The process of writing this report was deeply informed by the lectures and course material on Computational Optimal Transport, which provided both theoretical and practical insights. Forcing myself to be as pedagogical as possible in presenting the content allowed me to better understand the material and draw connections between the intuitive explanations and the rigorous mathematical formalism. This exercise not only clarified complex concepts for me but also helped bridge the gap between abstract theory and real-world application.
+
+Analogies, notations, and definitions used throughout the report were heavily inspired by both the lectures and supplementary materials I was lead to digest. I aimed to present these elements as clearly as possible, striving to make the concepts accessible to a broader audience while maintaining precision.
+
+By applying the techniques and ideas introduced in the course to a practical project, I developed a deeper appreciation of the fundamental challenges and trade-offs inherent in computational optimal transport. This hands-on experience reinforced the theoretical principles covered in lectures and demonstrated their relevance to ongoing research and applications.
+
+\clearpage
+
+\addcontentsline{toc}{section}{References}
+\bibliography{references}
+\bibliographystyle{plainnat}
+
+\newpage
+\appendix
+
+\section{Convergence in number of samples seen}
+\label{app:conv_sample}
+
+\paragraph{Experiment 3.}We present here results from experiment 3, regarding the convergence rate of the transport plans as a function of the number of samples seen. We report the results in \cref{fig:exp3_id_n} for the \emph{identity} setting, and in \cref{fig:exp3_dg1_n} for the \emph{discretized Gaussian} setting.
+
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}{0.48\linewidth}
+        \centering
+        \includegraphics[width=\linewidth]{images/id_dual_samples.png}
+    \end{subfigure}%
+    \hfill
+    \begin{subfigure}{0.48\linewidth}
+        \centering
+        \includegraphics[width=\linewidth]{images/id_tv_samples.png}
+    \end{subfigure}
+    \caption{Convergence speed of the transport plans in the \emph{identity} setting. \emph{Left :} $\mathcal{D}^{\epsilon}(u, v)$ against number of samples seen. \emph{Right :} Total variation of marginals against number of samples seen.}
+    \label{fig:exp3_id_n}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}{0.48\linewidth}
+        \centering
+        \includegraphics[width=\linewidth]{images/dg_dual_samples.png}
+    \end{subfigure}%
+    \hfill
+    \begin{subfigure}{0.48\linewidth}
+        \centering
+        \includegraphics[width=\linewidth]{images/dg_tv_samples.png}
+    \end{subfigure}
+    \caption{Convergence speed of the transport plans in the \emph{discretized Gaussian} setting. \emph{Left :} $\mathcal{D}^{\epsilon}(u, v)$ against number of samples seen. \emph{Right :} Total variation of marginals against number of samples seen.}
+    \label{fig:exp3_dg1_n}
+\end{figure}
+
+\end{document}
+
+
+%%%%%%%%%%
+% Template :
+%%%%%%%%%%
+
+% Referencing :
+% \citep{} for citation in parenthesis
+% \citet{} for citation in text
+% \cref{} for reference to sections and appendix
+% \Cref{} for reference to figures, tables, equations
+
+% Math :
+% \mathrm{} for non single letter variables or subscripts in math mode
+
+% Figures :
+% Simple figures with includegraphics :
+
+% \begin{figure}[h/t/b/H] : h (here), t (top), b (bottom), H (force)
+%     \centering
+%     \includegraphics[width=0.5\linewidth]{images/}
+%     \hfill / \vfill / \hspace{1em/pt} / \vspace{1em/pt} : spacing
+%         "em" : width of the letter "M" in the current font
+%         "pt" : point, approximately 1/72.27 inch or 0.3528 mm
+%     \caption{}
+%     \label{fig:}
+% \end{figure}
+
+% Subfigures :
+% advanced subfigures with subcaption :
+
+% \begin{figure}[htbpH]
+%     \centering
+%     \begin{subfigure}{0.45\linewidth}
+%         \centering
+%         \includegraphics[width=\linewidth]{images/}
+%         \caption{}
+%         \label{fig:}
+%     \end{subfigure}
+%     \hfill / \vfill / \hspace{1em/pt} / \vspace{1em/pt} : spacing
+%     \begin{subfigure}{0.45\linewidth}
+%         \centering
+%         \includegraphics[width=\linewidth]{images/}
+%         \caption{}
+%         \label{fig:}
+%     \end{subfigure}
+%     \caption{}
+%     \label{fig:}
+% \end{figure}
+
+% Wrapfigures :
+% wrapping text around figures :
+
+% \begin{wrapfigure}{r/l}{0.5\linewidth}
+%     \...
+% \end{wrapfigure}
+
+% Tables :
+
+% \begin{table}[h/t/b/H]
+%     \centering
+%     \begin{tabular}{|c|c|c|}
+%         \hline
+%         & & 
+%         \hline
+%         & & 
+%         \hline
+%     \end{tabular}
+%     \caption{}
+%     \label{tab:}
+% \end{table}
+
+% Algorithms :
+
+% \begin{algorithm}[H]
+%     \caption{}
+%     \label{alg:}
+%     \begin{algorithmic}
+%         \STATE
+%     \end{algorithmic}
+% \end{algorithm}
+
+% Equations :
+
+% \begin{equation} or \begin{equation*} (no numbering)
+%     \label{eq:}
+% \end{equation}
+
+% \begin{align} or \begin{align*} (each line is numbered or not)
+%     \label{eq:} \\
+%     \label{eq:}
+% \end{align}
+
+%%%%%%%%%%
+% Initial document organization :
+%%%%%%%%%%
+
+% \documentclass{article}
+
+% % Packages :
+% \usepackage{mathtools}                        % for align, equation, etc.
+% \usepackage{amssymb}                          % for mathbb
+% \usepackage{graphicx}                         % for includegraphics
+% \usepackage{natbib}                           % for bibliography
+% \usepackage[hidelinks]{hyperref}              % for hyperlinks
+% \usepackage{wrapfig}                          % for wrapfigure environment, to wrap text around figures
+% \usepackage{url}                              % for \url{}
+% \usepackage[capitalize,nameinlink]{cleveref}  % for \cref and \Cref.
+% \usepackage{subcaption}                       % for subfigures
+% \usepackage{stmaryrd}                         % for \llbracket and \rrbracket
+% \usepackage{algpseudocode}                    % for algorithmic environment
+% \usepackage{algorithm}                        % for algorithm environment
+% \usepackage{bbm}                              % for mathbbm
+
+% % Commands :
+% \newcommand{\R}{\mathbb{R}}
+% \newcommand{\Q}{\mathbb{Q}}
+% \newcommand{\N}{\mathbb{N}}
+% \newcommand{\Z}{\mathbb{Z}}
+% \newcommand{\C}{\mathbb{C}}
+% \newcommand{\E}{\mathbb{E}}
+% \newcommand{\Prob}{\mathbb{P}}
+% \newcommand{\1}{\mathbbm{1}}
+% \newcommand{\norm}[1]{\left\|#1\right\|}
+
+% % Document settings :
+% \widowpenalty=10000   % avoid widow lines : lone lines at the top of a page, ending a paragraph
+% \clubpenalty=10000    % avoid club lines : lone lines at the bottom of a page, starting a new paragraph
+% \usepackage[a4paper, margin=1.in]{geometry}
+
+%%%%%%%%%%
+% Main document organization :
+%%%%%%%%%%
+
+% \begin{document}
+
+% \title{...}
+% \author{
+%     Grégoire DHIMOÏLA \\
+%     ENS Paris-Saclay
+%     \and
+%     Author 2 \\ Institution
+% }
+% \date{...}
+% \maketitle
+
+% \newpage
+% \begin{abstract}
+%     ...
+% \end{abstract}
+
+% \newpage
+% \tableofcontents
+
+% \section{}
+% \label{sec:}
+
+% \paragraph{...} ...
+
+% \subsection{}
+% \label{sec:}
+
+% \paragraph{...} ...
+
+% \clearpage
+
+% \addcontentsline{toc}{section}{References}
+% \bibliography{references}
+% \bibliographystyle{plainnat}
+
+% \newpage
+% \appendix
+
+% \section{}
+% \label{sec:}
+
+% \paragraph{...} ...
+
+% \subsection{}
+% \label{sec:}
+
+% \paragraph{...} ...
+
+% \end{document}

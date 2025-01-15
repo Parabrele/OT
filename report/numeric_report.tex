@@ -1,0 +1,455 @@
+\documentclass[a4paper,11pt]{article}
+
+% Packages :
+\usepackage{mathtools}                        % for align, equation, etc.
+\usepackage{amssymb}                          % for mathbb
+\usepackage{graphicx}                         % for includegraphics
+\usepackage{natbib}                           % for bibliography
+\usepackage[hidelinks]{hyperref}              % for hyperlinks
+\usepackage{wrapfig}                          % for wrapfigure environment, to wrap text around figures
+\usepackage{url}                              % for \url{}
+\usepackage[capitalize,nameinlink]{cleveref}  % for \cref and \Cref.
+\usepackage{subcaption}                       % for subfigures
+\usepackage{stmaryrd}                         % for \llbracket and \rrbracket
+\usepackage{algpseudocode}                    % for algorithmic environment
+\usepackage{algorithm}                        % for algorithm environment
+\usepackage{bbm}                              % for mathbbm
+
+% Commands :
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\Q}{\mathbb{Q}}
+\newcommand{\N}{\mathbb{N}}
+\newcommand{\Z}{\mathbb{Z}}
+\newcommand{\C}{\mathbb{C}}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\Prob}{\mathbb{P}}
+\newcommand{\1}{\mathbbm{1}}
+\newcommand{\norm}[1]{\left\|#1\right\|}
+
+% Document settings :
+\widowpenalty=10000   % avoid widow lines : lone lines at the top of a page, ending a paragraph
+\clubpenalty=10000    % avoid club lines : lone lines at the bottom of a page, starting a new paragraph
+\usepackage[a4paper, margin=1.in]{geometry}
+
+% Start of document :
+\begin{document}
+
+\title{Numerical Tours}
+\author{
+    Grégoire DHIMOÏLA \\
+    ENS Paris-Saclay
+}
+\maketitle
+
+\begin{abstract}
+    This file contain a short report on my numerical tours
+\end{abstract}
+
+\section{Optimal Transport with Linear Programming}
+\label{sec:OT_LP}
+
+\paragraph{} In this numeric, Linear Programming algorithms are used to solve Optimal Transport problem on discrete distributions.
+
+\subsection{OT on Discrete Distributions}
+
+We begin with a mixture of two Gaussian Mixture Models described below, from which we sample $X$ and $Y$ with respectively 300 and 100 samples.
+
+The first mixture has weights $0.3, 0.5, 0.2$, means $(1, 2), (3, 5), (2, 4)$ and covariances sampled from the following procedure :
+\begin{itemize}
+    \item Sample $C \in \R^{2\times2} \sim \mathcal{N(0, 1)}$
+    \item $C \leftarrow C C^{\top}$ : sample a symmetric positive definite matrix
+    \item $U, S, V = SVD(C)$
+    \item $S \leftarrow \sigma (1, 0.8)$ : make it a patatoïde, with $\sigma$ controlling the size of the potato.
+    \item $C \leftarrow U S V$
+\end{itemize}
+
+The second mixture has weights $0.7, 0.3$, means $(1, 5), (2, 3)$ and covariances sampled from the same procedure.
+
+In all experiments we use the euclidean squared distance for a cost function.
+
+We assign random weights to each of these samples to make arbitrary distributions $a$ and $b$.
+
+\Cref{fig:data} shows the samples $X$ and $Y$, with a size proportional to their assigned weights.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.3\linewidth]{images/data.png}
+    \caption{Samples $X$ and $Y$}
+    \label{fig:data}
+\end{figure}
+
+We then compute the cost and initialize a linear program to solve the Optimal Transport problem, resulting in the following transport plan :
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.2\linewidth]{images/plan.png}
+    \caption{Transport plan}
+    \label{fig:plan}
+\end{figure}
+
+which can also be visualized as connections between samples :
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.3\linewidth]{images/connections.png}
+    \caption{Connections between samples}
+    \label{fig:connections}
+\end{figure}
+
+or as a displacement interpolation between the two distributions :
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.3\linewidth]{images/displacement.png}
+    \caption{Displacement interpolation}
+    \label{fig:displacement}
+\end{figure}
+
+\subsection{Optimal Assignment}
+
+Now, we take $n = m$, and $a = b = \1_n$ to compute the optimal assignment between two sets of points.
+
+We again use samples taken from two GMMs, summarized in \Cref{fig:data2}~:
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.3\linewidth]{images/data2.png}
+    \caption{Samples $X$ and $Y$}
+    \label{fig:data2}
+\end{figure}
+
+Which leads to the following permutation matrix after solving the linear program :
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.3\linewidth]{images/permutation.png}
+    \caption{Permutation matrix}
+    \label{fig:permutation}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.3\linewidth]{images/connections2.png}
+    \caption{Connections between samples}
+    \label{fig:connections2}
+\end{figure}
+
+\section{Entropic Regularization of Optimal Transport}
+
+\paragraph{} Linear programming can be slow for large datasets, so we can use entropic regularization to solve the Optimal Transport problem using Sinkhorn algorithm. This does not give an exact solution, but a good approximation in a reasonable time.
+
+Again, we use samples taken from two GMMs, summarized in \Cref{fig:data3}~:
+
+\subsection{exercise 1}
+
+Evolution of contraints satisfaction and dual objective during sinkhorn iterations.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.3\linewidth]{images/sinkhorn.png}
+    \caption{Sinkhorn iterations}
+    \label{fig:sinkhorn}
+\end{figure}
+
+\subsection{exercise 2}
+
+Repeating for various values of regularization parameter $\epsilon$, we get the following plans :
+
+% Juxtapose 4 images
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}{0.2\linewidth}
+        \centering
+        \includegraphics[width=\linewidth]{images/plan1.png}
+        \caption{$\epsilon = 10^{-3}$}
+        \label{fig:plan1}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}{0.2\linewidth}
+        \centering
+        \includegraphics[width=\linewidth]{images/plan2.png}
+        \caption{$\epsilon = 10^{-2}$}
+        \label{fig:plan2}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}{0.2\linewidth}
+        \centering
+        \includegraphics[width=\linewidth]{images/plan3.png}
+        \caption{$\epsilon = 10^{-1}$}
+        \label{fig:plan3}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}{0.2\linewidth}
+        \centering
+        \includegraphics[width=\linewidth]{images/plan4.png}
+        \caption{$\epsilon = 1$}
+        \label{fig:plan4}
+    \end{subfigure}
+    \caption{Transport plans for various $\epsilon$}
+    \label{fig:plans}
+\end{figure}
+
+As expected, as $\epsilon \rightarrow \infty$, the plan converges to the uniform product of marginals, while as $\epsilon \rightarrow 0$, the plan converges to the optimal transport plan. However, due to numerical errors, as $\epsilon$ decreases, the plan becomes less and less accurate and tends to $0$. In fact, in this setting, with $\epsilon = 10^{-1}$, the plan is already bad and close to $0$, with marginals not respected at all.
+
+With $\epsilon = 1$ we get the following connections~:
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.3\linewidth]{images/connections3.png}
+    \caption{Connections between samples}
+    \label{fig:connections3}
+\end{figure}
+
+\subsection{Transport between histograms}
+
+Here, we consider histograms : data is taken in a grid, and distributions are not uniform, summarized in \Cref{fig:histograms}~:
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.3\linewidth]{images/histograms.png}
+    \caption{Histograms}
+    \label{fig:histograms}
+\end{figure}
+
+\subsection{exercise 3}
+
+We run sinkhorn on this data with different values of $\epsilon$ : $\epsilon = 10^{-1}, 10^{-2}, 10^{-3}$ and $10^{-4}$, resulting in the following transport plans :
+
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}{0.4\linewidth}
+        \centering
+        \includegraphics[width=\linewidth]{images/plan5.png}
+        \caption{$\epsilon = 10^{-1}$}
+        \label{fig:plan5}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}{0.4\linewidth}
+        \centering
+        \includegraphics[width=\linewidth]{images/plan6.png}
+        \caption{$\epsilon = 10^{-2}$}
+        \label{fig:plan6}
+    \end{subfigure}
+    \vfill
+    \begin{subfigure}{0.4\linewidth}
+        \centering
+        \includegraphics[width=\linewidth]{images/plan7.png}
+        \caption{$\epsilon = 10^{-3}$}
+        \label{fig:plan7}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}{0.4\linewidth}
+        \centering
+        \includegraphics[width=\linewidth]{images/plan8.png}
+        \caption{$\epsilon = 10^{-4}$}
+        \label{fig:plan8}
+    \end{subfigure}
+    \caption{Transport plans for various $\epsilon$. Red curves represent the barycentric projection associated to the transport plan.}
+    \label{fig:plans2}
+\end{figure}
+
+\subsection{exercise GPU & log-sum-exp trick}
+
+We then try using pytorch and the GPU : to do so, we use the log-sum-exp trick for numerical stability, and report results of marginal total variation without the trick in \Cref{fig:TV1} and with the trick in \Cref{fig:TV2}. We can see that it obviously didn't work at all, with $u$ and $v$ either converging to $0$ or exploding to $+\infty$. We did not manage to find the issue, as the code transformation between the two versions is straightforward. During the first few iterations, results are very close, but it seems to be unstable and diverge quickly.
+
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}{0.4\linewidth}
+        \centering
+        \includegraphics[width=\linewidth]{images/TV1.png}
+        \caption{Total variation without log-sum-exp trick}
+        \label{fig:TV1}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}{0.4\linewidth}
+        \centering
+        \includegraphics[width=\linewidth]{images/TV2.png}
+        \caption{Total variation with log-sum-exp trick}
+        \label{fig:TV2}
+    \end{subfigure}
+    \caption{Total variation during Sinkhorn iterations}
+    \label{fig:TV}
+\end{figure}
+
+\end{document}
+
+
+%%%%%%%%%%
+% Template :
+%%%%%%%%%%
+
+% Referencing :
+% \citep{} for citation in parenthesis
+% \citet{} for citation in text
+% \cref{} for reference to sections and appendix
+% \Cref{} for reference to figures, tables
+
+% Math :
+% \mathrm{} for non single letter variables or subscripts in math mode
+
+% Figures :
+% Simple figures with includegraphics :
+
+% \begin{figure}[h/t/b/H] : h (here), t (top), b (bottom), H (force)
+%     \centering
+%     \includegraphics[width=0.5\linewidth]{images/}
+%     \hfill / \vfill / \hspace{1em/pt} / \vspace{1em/pt} : spacing
+%         "em" : width of the letter "M" in the current font
+%         "pt" : point, approximately 1/72.27 inch or 0.3528 mm
+%     \caption{}
+%     \label{fig:}
+% \end{figure}
+
+% Subfigures :
+% advanced subfigures with subcaption :
+
+% \begin{figure}[htbpH]
+%     \centering
+%     \begin{subfigure}{0.45\linewidth}
+%         \centering
+%         \includegraphics[width=\linewidth]{images/}
+%         \caption{}
+%         \label{fig:}
+%     \end{subfigure}
+%     \hfill / \vfill / \hspace{1em/pt} / \vspace{1em/pt} : spacing
+%     \begin{subfigure}{0.45\linewidth}
+%         \centering
+%         \includegraphics[width=\linewidth]{images/}
+%         \caption{}
+%         \label{fig:}
+%     \end{subfigure}
+%     \caption{}
+%     \label{fig:}
+% \end{figure}
+
+% Wrapfigures :
+% wrapping text around figures :
+
+% \begin{wrapfigure}{r/l}{0.5\linewidth}
+%     \...
+% \end{wrapfigure}
+
+% Tables :
+
+% \begin{table}[h/t/b/H]
+%     \centering
+%     \begin{tabular}{|c|c|c|}
+%         \hline
+%         & & 
+%         \hline
+%         & & 
+%         \hline
+%     \end{tabular}
+%     \caption{}
+%     \label{tab:}
+% \end{table}
+
+% Algorithms :
+
+% \begin{algorithm}[H]
+%     \caption{}
+%     \label{alg:}
+%     \begin{algorithmic}
+%         \STATE
+%     \end{algorithmic}
+% \end{algorithm}
+
+% Equations :
+
+% \begin{equation} or \begin{equation*} (no numbering)
+%     \label{eq:}
+% \end{equation}
+
+% \begin{align} or \begin{align*} (each line is numbered or not)
+%     \label{eq:} \\
+%     \label{eq:}
+% \end{align}
+
+%%%%%%%%%%
+% Initial document organization :
+%%%%%%%%%%
+
+% \documentclass{article}
+
+% % Packages :
+% \usepackage{mathtools}                        % for align, equation, etc.
+% \usepackage{amssymb}                          % for mathbb
+% \usepackage{graphicx}                         % for includegraphics
+% \usepackage{natbib}                           % for bibliography
+% \usepackage[hidelinks]{hyperref}              % for hyperlinks
+% \usepackage{wrapfig}                          % for wrapfigure environment, to wrap text around figures
+% \usepackage{url}                              % for \url{}
+% \usepackage[capitalize,nameinlink]{cleveref}  % for \cref and \Cref.
+% \usepackage{subcaption}                       % for subfigures
+% \usepackage{stmaryrd}                         % for \llbracket and \rrbracket
+
+% % Commands :
+% \newcommand{\R}{\mathbb{R}}
+% \newcommand{\Q}{\mathbb{Q}}
+% \newcommand{\N}{\mathbb{N}}
+% \newcommand{\Z}{\mathbb{Z}}
+% \newcommand{\C}{\mathbb{C}}
+% \newcommand{\E}{\mathbb{E}}
+% \newcommand{\Prob}{\mathbb{P}}
+% \newcommand{\1}{\mathbbm{1}}
+% \newcommand{\norm}[1]{\left\|#1\right\|}
+
+% % Document settings :
+% \widowpenalty=10000   % avoid widow lines : lone lines at the top of a page, ending a paragraph
+% \clubpenalty=10000    % avoid club lines : lone lines at the bottom of a page, starting a new paragraph
+% \usepackage[a4paper, margin=1.in]{geometry}
+
+%%%%%%%%%%
+% Main document organization :
+%%%%%%%%%%
+
+% \begin{document}
+
+% \title{...}
+% \author{
+%     Grégoire DHIMOÏLA \\
+%     ENS Paris-Saclay
+%     \and
+%     Author 2 \\ Institution
+% }
+% \date{...}
+% \maketitle
+
+% \newpage
+% \begin{abstract}
+%     ...
+% \end{abstract}
+
+% \newpage
+% \tableofcontents
+
+% \section{}
+% \label{sec:}
+
+% \paragraph{...} ...
+
+% \subsection{}
+% \label{sec:}
+
+% \paragraph{...} ...
+
+% \clearpage
+
+% \addcontentsline{toc}{section}{References}
+% \bibliography{references}
+% \bibliographystyle{plainnat}
+
+% \newpage
+% \appendix
+
+% \section{}
+% \label{sec:}
+
+% \paragraph{...} ...
+
+% \subsection{}
+% \label{sec:}
+
+% \paragraph{...} ...
+
+% \end{document}
